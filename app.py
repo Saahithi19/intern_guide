@@ -1,12 +1,14 @@
 from flask import Flask, render_template_string, request, redirect, url_for
 import os
+import tempfile
 from openpyxl import Workbook, load_workbook
 
 app = Flask(__name__)
 
-EXCEL_FILE = 'interns.xlsx'
+# ✅ Use temp directory for safe writing on Render
+EXCEL_FILE = os.path.join(tempfile.gettempdir(), 'interns.xlsx')
 
-# Initialize Excel file if not present
+# ✅ Create Excel file with header if not present
 def init_excel():
     if not os.path.exists(EXCEL_FILE):
         wb = Workbook()
@@ -14,22 +16,31 @@ def init_excel():
         ws.title = "Interns"
         ws.append(["Name", "Email", "Department", "Status"])
         wb.save(EXCEL_FILE)
+        print("Excel initialized at:", EXCEL_FILE)
+    else:
+        print("Excel already exists at:", EXCEL_FILE)
 
-# Append intern data to Excel
+# ✅ Save intern data to Excel (with error handling)
 def save_to_excel(name, email, dept, status):
-    wb = load_workbook(EXCEL_FILE)
-    ws = wb["Interns"]
-    ws.append([name, email, dept, status])
-    wb.save(EXCEL_FILE)
+    try:
+        wb = load_workbook(EXCEL_FILE)
+        ws = wb["Interns"]
+        ws.append([name, email, dept, status])
+        wb.save(EXCEL_FILE)
+    except Exception as e:
+        print("Excel Write Error:", e)
 
-# In-memory display list
+# ✅ Call init on startup
+init_excel()
+
+# In-memory intern list
 interns = [
     {"name": "June", "dept": "Python", "status": "Completed"},
     {"name": "Vismay", "dept": "A360", "status": "In Progress"},
     {"name": "Saahithi", "dept": "Python", "status": "Completed"},
 ]
 
-# HTML Template
+# ✅ Shared HTML base
 base_template = """
 <!DOCTYPE html>
 <html lang='en'>
@@ -37,78 +48,19 @@ base_template = """
     <meta charset='UTF-8'>
     <title>Interns Guide - {{ title }}</title>
     <style>
-        body {
-            margin: 0; padding: 0;
-            font-family: 'Segoe UI', sans-serif;
-            background: linear-gradient(135deg, #e0f7fa, #fce4ec);
-            color: #333;
-        }
-        header {
-            background: #006064;
-            color: white;
-            padding: 20px;
-            text-align: center;
-            font-size: 28px;
-            font-weight: bold;
-        }
-        nav {
-            display: flex;
-            background-color: #004d40;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        nav a {
-            color: white;
-            padding: 14px 20px;
-            text-decoration: none;
-            display: block;
-            transition: background 0.3s;
-        }
-        nav a:hover {
-            background: #00796b;
-        }
-        section {
-            padding: 30px;
-            max-width: 960px;
-            margin: auto;
-        }
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-            margin-top: 20px;
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 15px;
-        }
-        th, td {
-            padding: 12px;
-            text-align: center;
-            border-bottom: 1px solid #ccc;
-        }
-        th {
-            background-color: #b2ebf2;
-        }
-        input, select {
-            padding: 10px;
-            margin-top: 8px;
-            width: 100%;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-        }
-        input[type="submit"] {
-            background-color: #006064;
-            color: white;
-            border: none;
-            cursor: pointer;
-            margin-top: 15px;
-        }
-        input[type="submit"]:hover {
-            background-color: #004d40;
-        }
+        body { margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #e0f7fa, #fce4ec); color: #333; }
+        header { background: #006064; color: white; padding: 20px; text-align: center; font-size: 28px; font-weight: bold; }
+        nav { display: flex; background-color: #004d40; justify-content: center; flex-wrap: wrap; }
+        nav a { color: white; padding: 14px 20px; text-decoration: none; display: block; transition: background 0.3s; }
+        nav a:hover { background: #00796b; }
+        section { padding: 30px; max-width: 960px; margin: auto; }
+        .card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: center; border-bottom: 1px solid #ccc; }
+        th { background-color: #b2ebf2; }
+        input, select { padding: 10px; margin-top: 8px; width: 100%; border-radius: 6px; border: 1px solid #ccc; }
+        input[type="submit"] { background-color: #006064; color: white; border: none; cursor: pointer; margin-top: 15px; }
+        input[type="submit"]:hover { background-color: #004d40; }
     </style>
 </head>
 <body>
@@ -148,12 +100,15 @@ def home():
 @app.route('/registration', methods=['GET', 'POST'])
 def registration():
     if request.method == 'POST':
-        name = request.form['name']
-        email = request.form['email']
-        dept = request.form['dept']
-        interns.append({"name": name, "dept": dept, "status": "In Progress"})
-        save_to_excel(name, email, dept, "In Progress")
-        return redirect(url_for('home'))
+        try:
+            name = request.form['name']
+            email = request.form['email']
+            dept = request.form['dept']
+            interns.append({"name": name, "dept": dept, "status": "In Progress"})
+            save_to_excel(name, email, dept, "In Progress")
+            return redirect(url_for('home'))
+        except Exception as e:
+            return f"<h3>Form processing error: {e}</h3>"
 
     content = """
         <form method='post'>
@@ -168,12 +123,7 @@ def registration():
 @app.route('/onboarding')
 def onboarding():
     rows = "".join(f"<tr><td>{i['name']}</td><td>{i['dept']}</td><td>{i['status']}</td></tr>" for i in interns)
-    content = f"""
-        <table>
-            <tr><th>Name</th><th>Department</th><th>Status</th></tr>
-            {rows}
-        </table>
-    """
+    content = f"<table><tr><th>Name</th><th>Department</th><th>Status</th></tr>{rows}</table>"
     return render_template_string(base_template, title="Onboarding Status", content=content)
 
 @app.route('/modules')
@@ -227,6 +177,7 @@ def contact():
         <p>Rajesh - 78965XXXXX</p>
     """
     return render_template_string(base_template, title="Contact Us", content=content)
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
